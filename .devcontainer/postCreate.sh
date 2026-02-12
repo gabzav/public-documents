@@ -2,48 +2,38 @@ cat > .devcontainer/postCreate.sh <<'BASH'
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_DIR="/workspaces/public-documents"
+cd /workspaces/public-documents
 
-echo "== System deps =="
-sudo apt-get update
-sudo apt-get install -y mariadb-server \
-  libpng-dev libjpeg-dev libfreetype6-dev \
-  libzip-dev libicu-dev unzip curl
+echo "== Sanity: GD loaded? =="
+php -m | grep -i gd
 
-echo "== PHP extensions for Drupal =="
-sudo docker-php-ext-configure gd --with-freetype --with-jpeg
-sudo docker-php-ext-install gd zip intl
-
-echo "== Start MariaDB =="
-sudo service mysql start
-
-echo "== DB setup (idempotent) =="
-mysql -u root <<'SQL'
-CREATE DATABASE IF NOT EXISTS drupal;
-CREATE USER IF NOT EXISTS 'drupal'@'localhost' IDENTIFIED BY 'drupal';
-GRANT ALL PRIVILEGES ON drupal.* TO 'drupal'@'localhost';
-FLUSH PRIVILEGES;
-SQL
-
-echo "== Composer =="
-if ! command -v composer >/dev/null 2>&1; then
-  curl -sS https://getcomposer.org/installer | php
-  sudo mv composer.phar /usr/local/bin/composer
+echo "== Install Drupal (if missing) =="
+if [ ! -d web/core ] && [ ! -d drupal-temp/web/core ]; then
+  composer create-project drupal/recommended-project:^11 drupal-temp --no-interaction
 fi
 
-cd "$REPO_DIR"
-
-echo "== Drupal codebase (recommended-project) =="
-if [ ! -d "$REPO_DIR/web/core" ]; then
-  # If repo is empty, create Drupal in-place.
-  if [ ! -f "$REPO_DIR/composer.json" ]; then
-    composer create-project drupal/recommended-project:^11 . --no-interaction
-  else
-    composer install --no-interaction
-  fi
+# Move into repo root if still in drupal-temp
+if [ -d drupal-temp/web/core ] && [ ! -d web/core ]; then
+  shopt -s dotglob
+  mv drupal-temp/* .
+  rmdir drupal-temp
 fi
 
-echo "== settings.php + files dir =="
+echo "== Apache docroot -> /workspaces/public-documents/web =="
+sed -i 's#DocumentRoot /var/www/html#DocumentRoot /workspaces/public-documents/web#g' /etc/apache2/sites-available/000-default.conf
+
+# Ensure AllowOverride for Drupal .htaccess
+if ! grep -q "/workspaces/public-documents/web" /etc/apache2/apache2.conf; then
+  cat >> /etc/apache2/apache2.conf <<'CONF'
+
+<Directory /workspaces/public-documents/web/>
+  AllowOverride All
+  Require all granted
+</Directory>
+CONF
+fi
+
+echo "== Prepare sites/default =="
 mkdir -p web/sites/default/files
 if [ ! -f web/sites/default/settings.php ]; then
   cp web/sites/default/default.settings.php web/sites/default/settings.php
@@ -66,28 +56,11 @@ $settings['reverse_proxy_trusted_headers'] = \Symfony\Component\HttpFoundation\R
 PHP
 fi
 
-echo "== Apache docroot -> /workspaces/public-documents/web =="
-sudo sed -i 's#DocumentRoot /var/www/html#DocumentRoot /workspaces/public-documents/web#g' /etc/apache2/sites-available/000-default.conf
-# Ensure directory permissions match docroot
-if ! grep -q "/workspaces/public-documents/web" /etc/apache2/apache2.conf; then
-  # Add a directory block if missing
-  cat | sudo tee -a /etc/apache2/apache2.conf >/dev/null <<'CONF'
-
-<Directory /workspaces/public-documents/web/>
-  AllowOverride All
-  Require all granted
-</Directory>
-CONF
-fi
-
-sudo a2enmod rewrite headers >/dev/null 2>&1 || true
-sudo service apache2 restart
+service apache2 restart
 
 echo ""
-echo "✅ Ready."
-echo "Open port 8080 in the Ports tab."
-echo "Installer: /core/install.php"
-echo "DB: host=localhost db=drupal user=drupal pass=drupal"
+echo "✅ Ready. Open port 8080 -> /core/install.php"
+echo "Use SQLite in the installer (no DB server needed)."
 BASH
 
 chmod +x .devcontainer/postCreate.sh

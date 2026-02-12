@@ -1,6 +1,6 @@
 {
   "name": "public-documents (Drupal 11 PoC)",
-  "image": "mcr.microsoft.com/devcontainers/php:8.3-apache-bullseye",
+  "build": { "dockerfile": "Dockerfile" },
   "forwardPorts": [8080],
   "postCreateCommand": "bash .devcontainer/postCreate.sh",
   "customizations": {
@@ -11,4 +11,3 @@
     }
   }
 }
-
