@@ -1,0 +1,16 @@
+mkdir -p .devcontainer
+cat > .devcontainer/devcontainer.json <<'JSON'
+{
+  "name": "public-documents (Drupal 11 PoC)",
+  "image": "mcr.microsoft.com/devcontainers/php:8.3-apache-bullseye",
+  "forwardPorts": [8080],
+  "postCreateCommand": "bash .devcontainer/postCreate.sh",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "bmewburn.vscode-intelephense-client"
+      ]
+    }
+  }
+}
+JSON
