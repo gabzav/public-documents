@@ -1,8 +1,8 @@
 {
-  "name": "public-documents (Drupal 11 PoC)",
-  "build": { "dockerfile": "Dockerfile" },
+  "name": "public-documents",
+  "image": "mcr.microsoft.com/devcontainers/php:8.3-apache-bullseye",
   "forwardPorts": [8080],
-  "postCreateCommand": "bash .devcontainer/postCreate.sh",
+  "postCreateCommand": "composer create-project drupal/recommended-project:^11 drupal --no-interaction",
   "customizations": {
     "vscode": {
       "extensions": [
